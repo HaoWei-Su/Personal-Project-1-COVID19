@@ -1,0 +1,138 @@
+SELECT
+Location, date, total_cases, new_cases, total_deaths, population
+FROM
+`operating-rush-368909.COVID19.COVID19_deaths`
+WHERE continent is NOT NULL
+order by 1,2
+
+ -- Total cases vs. Total deaths
+SELECT
+Location, date, total_cases, total_deaths, (total_deaths/total_cases)*100 AS deathrate
+FROM
+`operating-rush-368909.COVID19.COVID19_deaths`
+WHERE location= 'United States'
+order by 1,2
+
+ -- Total cases vs. Population
+ SELECT
+Location, date, total_cases, population, (total_cases/population)*100 AS deathrate
+FROM
+`operating-rush-368909.COVID19.COVID19_deaths`
+WHERE location= 'United States'
+order by 1,2
+
+-- Countries with highest infection rate compared to population
+
+SELECT
+Location, population, MAX(total_cases) AS highestinfectioncount,  MAX(total_cases/population)*100 AS percentageinfection
+FROM
+`operating-rush-368909.COVID19.COVID19_deaths`
+GROUP BY location,population
+order by percentageinfection DESC
+
+-- Countries with highest deathcount by countries
+
+SELECT
+Location, MAX(total_deaths) AS totaldeathcount
+FROM
+`operating-rush-368909.COVID19.COVID19_deaths`
+WHERE continent is NOT NULL
+GROUP BY location
+order by totaldeathcount DESC
+
+-- Countries with highest deathcount by continent
+
+SELECT
+continent, MAX(total_deaths) AS totaldeathcount
+FROM
+`operating-rush-368909.COVID19.COVID19_deaths`
+WHERE continent is NOT NULL
+GROUP BY continent
+order by totaldeathcount DESC
+
+
+
+-- GLOBAL NUMBERS of deathrate, by date
+SELECT
+date, SUM(new_cases) as Total_cases ,SUM(new_deaths) AS Total_deaths, (SUM(new_deaths)/SUM(new_cases))*100 AS deathrate
+FROM
+`operating-rush-368909.COVID19.COVID19_deaths`
+WHERE continent is NOT NULL
+GROUP BY date
+order by 1,2
+
+-- Total number of cases and deaths globally 
+SELECT
+SUM(new_cases) as Total_cases ,SUM(new_deaths) AS Total_deaths, (SUM(new_deaths)/SUM(new_cases))*100 AS deathrate
+FROM
+`operating-rush-368909.COVID19.COVID19_deaths`
+WHERE continent is NOT NULL
+order by 1,2
+
+-- Vacinnation table
+-- Vacinatted number by country and date
+Select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations,
+SUM (vac.new_vaccinations) OVER (PARTITION BY dea.location ORDER BY dea.location, dea.date) AS RollingPeopleVaccinated,
+FROM `operating-rush-368909.COVID19.COVID19_deaths` dea
+JOIN `operating-rush-368909.COVID19.COVID19_vacinnation` vac
+  ON dea.location = vac.location
+  and dea.date = vac.date
+WHERE dea.continent IS NOT null
+order by 2,3  
+
+-- use CTE
+
+With PopvsVac
+AS
+(
+  Select dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations
+, SUM (vac.new_vaccinations) OVER (PARTITION BY dea.location ORDER BY dea.location,dea.date) AS RollingPeopleVaccinated
+FROM `operating-rush-368909.COVID19.COVID19_deaths` dea
+JOIN `operating-rush-368909.COVID19.COVID19_vacinnation` vac
+  ON dea.location = vac.location
+  and dea.date = vac.date
+WHERE dea.continent IS NOT null
+--order by 2,3
+)
+SELECT *, (RollingPeopleVaccinated/population)*100
+FROM PopvsVac
+
+-- TEMP TABLE
+-- Percent population vaccinated
+DROP TABLE IF EXISTS  `operating-rush-368909.COVID19.PercentPopulationVaccinated` 
+CREATE TABLE `operating-rush-368909.COVID19.PercentPopulationVaccinated`
+(
+  Continent STRING,
+  Location STRING,
+  Date date,
+  Population INTEGER,
+  New_vacinations INTEGER,
+  RollingPeopleVaccinated INTEGER
+)
+
+INSERT INTO  `operating-rush-368909.COVID19.PercentPopulationVaccinated`
+  SELECT dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations, 
+SUM (vac.new_vaccinations) OVER (PARTITION BY dea.location ORDER BY dea.location,dea.date) AS RollingPeopleVaccinated
+FROM `operating-rush-368909.COVID19.COVID19_deaths` dea
+JOIN `operating-rush-368909.COVID19.COVID19_vacinnation` vac
+  ON dea.location = vac.location
+  and dea.date = vac.date
+--WHERE dea.continent IS NOT null
+--order by 2,3
+
+SELECT *, (RollingPeopleVaccinated/population)*100
+FROM  `operating-rush-368909.COVID19.PercentPopulationVaccinated`
+
+-- Data for data visualization
+
+CREATE VIEW  `operating-rush-368909.COVID19.PercentPopulationVaccinated_VIEW` AS
+  SELECT dea.continent, dea.location, dea.date, dea.population, vac.new_vaccinations, 
+SUM (vac.new_vaccinations) OVER (PARTITION BY dea.location ORDER BY dea.location,dea.date) AS RollingPeopleVaccinated
+FROM `operating-rush-368909.COVID19.COVID19_deaths` dea
+JOIN `operating-rush-368909.COVID19.COVID19_vacinnation` vac
+  ON dea.location = vac.location
+  and dea.date = vac.date
+WHERE dea.continent IS NOT null
+
+SELECT *
+FROM `operating-rush-368909.COVID19.PercentPopulationVaccinated_VIEW`
